@@ -7,7 +7,15 @@ import { buildLander } from './lander.js';
 
 const FILM = window.FILM || { t: 0, reduced: true };
 const reduced = !!FILM.reduced;
-const DPR = Math.min(window.devicePixelRatio || 1, 1.5);
+// quality tier: phones, touch tablets and low-core laptops get 1x pixels, no shadows, lighter dust
+let LOW = matchMedia('(pointer: coarse)').matches || innerWidth < 760 || (navigator.hardwareConcurrency || 8) <= 4;
+// software WebGL (SwiftShader / llvmpipe — e.g. Chromium on Wayland + NVIDIA with GPU acceleration off): every pixel costs CPU
+const SOFT = (() => { try { const g = document.createElement('canvas').getContext('webgl'); if (!g) return true;
+  const e = g.getExtension('WEBGL_debug_renderer_info'); const r = String(e ? g.getParameter(e.UNMASKED_RENDERER_WEBGL) : g.getParameter(g.RENDERER));
+  g.getExtension('WEBGL_lose_context')?.loseContext(); return /swiftshader|llvmpipe|softpipe|software|basic render/i.test(r); } catch { return false; } })();
+const DPR = SOFT ? 0.5 : LOW ? 1 : Math.min(window.devicePixelRatio || 1, 1.25);
+document.documentElement.classList.toggle('soft-gl', SOFT);
+if (SOFT) { LOW = true; window.__softGL = true; window.dispatchEvent(new Event('resize')); }
 const C = {
   night: new THREE.Color(0x111111), gold: new THREE.Color(0xe2b862), sodium: new THREE.Color(0xf6a443), plasma: new THREE.Color(0xff7a2a),
   warm: new THREE.Color(0xf3f1ec), airglow: new THREE.Color(0xe9e5dc), stone: new THREE.Color(0x5e5a54), hot: new THREE.Color(0xfff1cf),
@@ -28,8 +36,8 @@ function kf(list, t) {
 const band = (t, a, b, fi = 10, fo = 10) => Math.min(a <= 0 ? 1 : sm((t - a) / fi), b >= 1e8 ? 1 : sm((b - t) / fo));
 let seed = 11; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
 
-function renderer(canvas, alpha) {
-  const r = new THREE.WebGLRenderer({ canvas, antialias: true, alpha, powerPreference: 'high-performance' });
+function renderer(canvas, alpha, aa = !LOW) {
+  const r = new THREE.WebGLRenderer({ canvas, antialias: aa, alpha, powerPreference: 'high-performance' });
   r.setPixelRatio(DPR); r.setSize(innerWidth, innerHeight, false); r.outputColorSpace = THREE.SRGBColorSpace;
   if (alpha) r.setClearColor(0x000000, 0);
   return r;
@@ -45,7 +53,7 @@ const ADD = { blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, 
 const dotTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.4, 'rgba(255,255,255,.35)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
 
 /* ═════════════════════════ WORLD ═════════════════════════ */
-const wr = renderer(document.getElementById('world'), false);
+const wr = renderer(document.getElementById('world'), false, false);
 wr.setClearColor(C.night);
 const ws = new THREE.Scene();
 const wcam = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 2000);
@@ -71,6 +79,7 @@ const halfGeo = new THREE.CircleGeometry(0.465, 20, 0, Math.PI); halfGeo.rotateX
 const tiles = new THREE.InstancedMesh(tileGeo, tileMat, FACES.length);
 const halves = new THREE.InstancedMesh(halfGeo, tileMat, HALVES.length);
 const qubits = new THREE.InstancedMesh(new THREE.SphereGeometry(0.1, 16, 12), new THREE.MeshBasicMaterial({ color: 0xffffff }), DATA.length);
+[tiles, halves, qubits].forEach((m) => { for (let i = 0; i < m.count; i++) m.setColorAt(i, C.gold); });
 lattice.add(tiles, halves, qubits);
 const outlineGeo = new THREE.BufferGeometry(); outlineGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(16 * 3), 3));
 const outline = new THREE.LineSegments(outlineGeo, new THREE.LineBasicMaterial({ color: C.sodium, transparent: true, opacity: 0.85 })); lattice.add(outline);
@@ -130,8 +139,9 @@ const cloudTex = (() => {
 })();
 const clouds = new THREE.Group(); ws.add(clouds);
 const cloudMat = new THREE.SpriteMaterial({ map: cloudTex, color: 0xa9abae, transparent: true, opacity: 0.75, depthWrite: false });
-for (let i = 0; i < 120; i++) {
-  const s = new THREE.Sprite(cloudMat); const deck = i < 60;
+const NCLOUD = LOW ? 56 : 120;
+for (let i = 0; i < NCLOUD; i++) {
+  const s = new THREE.Sprite(cloudMat); const deck = i < NCLOUD / 2;
   s.position.set((rnd() - 0.5) * 90, deck ? -34 - rnd() * 8 : -20 + rnd() * 60, -rnd() * 70 + 5);
   const k = deck ? 22 + rnd() * 18 : 8 + rnd() * 14; s.scale.set(k * 1.6, k, 1); clouds.add(s);
 }
@@ -151,7 +161,7 @@ const xs = new THREE.Scene();
 const xcam = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.005, 60);
 const XD = 3.6;
 const xg = new THREE.Group(); xs.add(xg);
-const BN = 22000, BR = 2600, BA = 420; // shell dust, two great circles, the |0>–|1> axis
+const BN = LOW ? 9000 : 16000, BR = LOW ? 1300 : 2000, BA = LOW ? 260 : 420; // shell dust, two great circles, the |0>–|1> axis
 const bPos = new Float32Array((BN + BR * 2 + BA) * 3), bRnd = new Float32Array(BN + BR * 2 + BA), bKind = new Float32Array(BN + BR * 2 + BA);
 {
   let i = 0; const put = (x, y, z, k) => { bPos.set([x, y, z], i * 3); bRnd[i] = Math.random(); bKind[i] = k; i++; };
@@ -224,8 +234,8 @@ as.environment = (() => { const pm = new THREE.PMREMGenerator(ar); const e = pm.
 as.environmentIntensity = 0.55;
 as.add(new THREE.HemisphereLight(0x2b2824, 0x5a4a38, 1.4));
 const key = new THREE.DirectionalLight(0xfff2dc, 4.2); key.position.set(-4, 6, 5); as.add(key); as.add(key.target);
-key.castShadow = true; key.shadow.mapSize.set(1024, 1024); key.shadow.bias = -0.0008; key.shadow.normalBias = 0.02; key.shadow.radius = 2;
-ar.shadowMap.enabled = true; ar.shadowMap.type = THREE.PCFSoftShadowMap;
+key.castShadow = !LOW; key.shadow.mapSize.set(1024, 1024); key.shadow.bias = -0.0008; key.shadow.normalBias = 0.02; key.shadow.radius = 2;
+ar.shadowMap.enabled = !LOW; ar.shadowMap.type = THREE.PCFShadowMap;
 const rim = new THREE.DirectionalLight(0xe0d2bc, 1.4); rim.position.set(5, 1, -6); as.add(rim);
 const plumeLight = new THREE.PointLight(0xff9a4a, 0, 8, 1.5); as.add(plumeLight);
 const KEYDIR = new THREE.Vector3(-4, 6, 5).normalize();
@@ -303,6 +313,8 @@ const dArm = new THREE.InstancedMesh(new THREE.BoxGeometry(0.42, 0.016, 0.026), 
 const rotorGeo = new THREE.RingGeometry(0.035, 0.075, 24); rotorGeo.rotateX(-Math.PI / 2);
 const dRotor = new THREE.InstancedMesh(rotorGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false, ...ADD }), SW * 4);
 const dLed = new THREE.InstancedMesh(new THREE.SphereGeometry(0.02, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff }), SW);
+// give every instanced mesh its colour buffer up front: adding it on the first frame changes the shader (a recompile stall)
+[dBody, dRotor, dLed].forEach((m) => { for (let i = 0; i < m.count; i++) m.setColorAt(i, C.sodium); });
 [dBody, dArm, dRotor, dLed].forEach((m) => { m.frustumCulled = false; as.add(m); });
 const swOff = Array.from({ length: SW }, () => [(rnd() - 0.5) * 2, (rnd() - 0.5) * 2, -rnd() * 3 + 0.6, rnd() * 6.28]);
 const auditGeo = new THREE.BufferGeometry(); auditGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(LIARS.length * 3 * 6), 3));
@@ -327,10 +339,18 @@ function frame(now) {
   lattice.scale.setScalar(phone ? 0.62 : 1);
   clouds.visible = cloudOn;
   cloudMat.color.set(0x6a6c70).lerp(C.plasma, 0.45 * (1 - sm((t - 560) / 120))); cloudMat.opacity = 0.32;
-  wcam.aspect = aspect; wcam.updateProjectionMatrix();
-  wr.render(ws, wcam);
+  const worldOn = latOn || cloudOn;
+  if (worldOn || wDirty) { wcam.aspect = aspect; wcam.updateProjectionMatrix(); wr.render(ws, wcam); wDirty = worldOn; }
 
   if (reduced) return;
+  // the DOM layering: the Bloch sphere sits under the type (intro, contact)
+  const under = t < 130 || t > 1310;
+  if (under !== FILM.under) { FILM.under = under; document.body.classList.toggle('actor-under', under); }
+  // actor canvas: hidden and not drawn at all while no actor is on screen
+  const xOn = t < 124 || t > 1316, lOn = t > 490 && t < 712, sOn = t > 700 && t < 850;
+  const actorOn = xOn || lOn || sOn || particles.visible;
+  if (actorOn !== aShown) { aShown = actorOn; actorEl.style.visibility = actorOn ? '' : 'hidden'; if (!actorOn) ar.clear(); }
+  if (!actorOn) return;
   ar.clear();
 
   /* A. Bloch sphere: intro (condenses, precesses, flattens into the lens ring) and contact (returns as a ring around the links) */
@@ -481,13 +501,41 @@ function frame(now) {
     { const scm = key.shadow.camera; scm.left = -HW; scm.right = HW; scm.top = HH; scm.bottom = -HH; scm.updateProjectionMatrix(); }
   }
 
-  // the DOM layering: the Bloch sphere sits under the type (intro, contact)
-  const under = t < 130 || t > 1310;
-  if (under !== FILM.under) { FILM.under = under; document.body.classList.toggle('actor-under', under); }
 
   if (landerOn || swarmOn || particles.visible) { acam.aspect = aspect; acam.updateProjectionMatrix(); ar.render(as, acam); }
 }
 
-function loop(now) { frame(now); requestAnimationFrame(loop); }
-addEventListener('resize', () => { wr.setSize(innerWidth, innerHeight, false); ar.setSize(innerWidth, innerHeight, false); });
+// adaptive resolution: if frames run slow for a second, render fewer pixels (and recover when fast again)
+let wDirty = true, aShown = true, fq = 1, avg = 16.7, lastLoop = 0, settle = 0;
+const actorEl = document.getElementById('actor');
+function setQuality(q) { fq = q; wr.setPixelRatio(DPR * q); ar.setPixelRatio(DPR * q); wr.setSize(innerWidth, innerHeight, false); ar.setSize(innerWidth, innerHeight, false); wDirty = true; }
+function loop(now) {
+  const d = lastLoop ? now - lastLoop : 16.7; lastLoop = now;
+  if (d < 250) avg += (d - avg) * 0.05; // ignore tab switches
+  settle += d;
+  if (settle > 1200) {
+    if (avg > 24 && fq > 0.5) { setQuality(Math.max(0.5, fq - 0.2)); settle = 0; }
+    else if (avg < 14 && fq < 1) { setQuality(Math.min(1, fq + 0.1)); settle = 0; }
+  }
+  frame(now); requestAnimationFrame(loop);
+}
+addEventListener('resize', () => { wr.setSize(innerWidth, innerHeight, false); ar.setSize(innerWidth, innerHeight, false); wDirty = true; });
 if (reduced) { frame(performance.now()); } else requestAnimationFrame(loop);
+
+/* warm-up: compile every scene's shaders (and the shadow variants) while the intro plays, so the first lattice /
+   lander / swarm frame doesn't stall 150–380 ms on shader compilation. Hidden canvas, one scene per idle slot. */
+if (!reduced) {
+  const idle = (fn) => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout: 1500 }) : setTimeout(fn, 200));
+  const warm = async (r, scene, cam) => {
+    const was = []; scene.traverse((o) => { was.push([o, o.visible]); o.visible = true; });
+    try { if (r.compileAsync) await r.compileAsync(scene, cam); else r.compile(scene, cam); } catch (e) { /* ignore */ }
+    // one real render into a tiny offscreen target builds the shadow-map programs too, without touching the screen
+    const rt = new THREE.WebGLRenderTarget(16, 16); const prev = r.getRenderTarget();
+    r.setRenderTarget(rt); r.render(scene, cam); r.setRenderTarget(prev); rt.dispose();
+    was.forEach(([o, v]) => { o.visible = v; });
+  };
+  setTimeout(() => idle(async () => {
+    await warm(wr, ws, wcam); wDirty = true;
+    idle(() => warm(ar, as, acam));
+  }), 2500);
+}

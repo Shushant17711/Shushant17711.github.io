@@ -25,27 +25,45 @@
   const N = 2200; const tr = new Float32Array(N * 2); let head = 0, count = 0;
   const tip = () => [Math.sin(q[0]) + Math.sin(q[1]), Math.cos(q[0]) + Math.cos(q[1])];
   const push = () => { const t = tip(); tr[head * 2] = t[0]; tr[head * 2 + 1] = t[1]; head = (head + 1) % N; count = Math.min(N, count + 1); };
-  let W = 0, Hh = 0, dpr = 1;
-  const size = () => { dpr = Math.min(2, devicePixelRatio || 1); W = cv.clientWidth; Hh = cv.clientHeight; cv.width = W * dpr; cv.height = Hh * dpr; };
+  let W = 0, Hh = 0, dpr = 1, B = 0;
+  // the canvas is only the pendulum's reach (a square around the pivot), moved with a transform, not a full-screen layer:
+  // full-screen 2D canvases are expensive to composite on software-rendered browsers and phones
+  const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const size = () => {
+    dpr = window.__softGL ? 0.75 : Math.min(matchMedia('(pointer: coarse)').matches ? 1.5 : 1.5, devicePixelRatio || 1);
+    const host = RM ? cv : cv.parentElement; W = host.clientWidth; Hh = host.clientHeight;
+    if (RM) { cv.width = W * dpr; cv.height = Hh * dpr; return; }
+    B = Math.ceil(4.4 * 0.2 * Math.min(W, Hh) + 48);
+    Object.assign(cv.style, { inset: 'auto', left: '0px', top: '0px', width: B + 'px', height: B + 'px', willChange: 'transform' });
+    cv.width = Math.round(B * dpr); cv.height = Math.round(B * dpr);
+  };
   addEventListener('resize', size); size();
 
   function draw(dp) {
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, Hh);
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height);
     if (!dp || dp.on <= 0.01) return;
     const L = dp.s * Math.min(W, Hh), ox = dp.x * W, oy = dp.y * Hh;
+    if (RM) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    else { const bx = Math.round(ox - B / 2), by = Math.round(oy - B / 2); cv.style.transform = `translate3d(${bx}px,${by}px,0)`; ctx.setTransform(dpr, 0, 0, dpr, -bx * dpr, -by * dpr); }
     const X = (u) => ox + u[0] * L, Y = (u) => oy + u[1] * L;
     ctx.globalAlpha = dp.on;
     // swept reach (the pendulum's whole state space boundary), faint
     ctx.strokeStyle = 'rgba(233,229,220,.10)'; ctx.lineWidth = 1; ctx.setLineDash([3, 6]);
     ctx.beginPath(); ctx.arc(ox, oy, 2 * L, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
     // trace: oldest → newest, fading in, additive gold
-    ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
+    ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     const start = (head - count + N) % N;
-    for (let i = 1; i < count; i++) {
-      const a = (start + i - 1) % N, b = (start + i) % N, age = i / count;
+    // batched into age bands: one stroke per band instead of one per segment (2200 strokes was the frame cost)
+    const BANDS = window.__softGL ? 14 : 24, DEC = window.__softGL ? 4 : 1; // software raster: fewer, coarser strokes
+    for (let j = 0; j < BANDS; j++) {
+      const i0 = Math.max(1, Math.floor((j / BANDS) * count)), i1 = Math.floor(((j + 1) / BANDS) * count);
+      if (i1 <= i0) continue;
+      const age = (j + 0.5) / BANDS;
       ctx.strokeStyle = `rgba(${226 + 20 * age | 0},${184 + 30 * age | 0},${98 + 60 * age * age | 0},${(0.1 + 0.9 * age).toFixed(3)})`;
       ctx.lineWidth = 1.2 + 2.8 * age * age;
-      ctx.beginPath(); ctx.moveTo(ox + tr[a * 2] * L, oy + tr[a * 2 + 1] * L); ctx.lineTo(ox + tr[b * 2] * L, oy + tr[b * 2 + 1] * L); ctx.stroke();
+      ctx.beginPath(); let a = (start + i0 - 1) % N; ctx.moveTo(ox + tr[a * 2] * L, oy + tr[a * 2 + 1] * L);
+      for (let i = i0; i <= i1 && i < count; i += (i + DEC > i1 ? 1 : DEC)) { a = (start + i) % N; ctx.lineTo(ox + tr[a * 2] * L, oy + tr[a * 2 + 1] * L); }
+      ctx.stroke();
     }
     ctx.globalCompositeOperation = 'source-over';
     // rods
@@ -84,7 +102,9 @@
       if (out && now - shown > 250) { shown = now; out.textContent = (Math.abs(energy(q, p) - E0) / Math.abs(E0)).toExponential(1); }
       draw(d);
     } else if (cv.dataset.clear !== '1') { draw(null); }
-    cv.dataset.clear = d && d.on > 0.01 ? '0' : '1';
+    const on = d && d.on > 0.01;
+    if (cv.dataset.clear !== (on ? '0' : '1')) cv.style.visibility = on ? '' : 'hidden'; // off-screen: not composited
+    cv.dataset.clear = on ? '0' : '1';
     requestAnimationFrame(loop);
   }
   requestAnimationFrame(loop);

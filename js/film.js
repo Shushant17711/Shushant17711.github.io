@@ -1,7 +1,7 @@
 /* film.js — DOM choreography. One master timeline, measured in vh of scroll.
    The Three.js world (world.js) reads the same clock: window.FILM.t = scrollY / innerHeight. */
 (function () {
-  const kit = motionKit.init({ lerp: 0.12 });
+  const kit = motionKit.init({ lerp: 0.2 });
   const reduced = kit.reduced;
   const gsap = window.gsap;
   const $ = (s, r = document) => r.querySelector(s);
@@ -64,6 +64,9 @@
   })();
   const sizeShards = () => { shardsEl.style.height = card.offsetHeight + 'px'; };
 
+
+  // decode the scene images ahead of time (idle), so a layer's first appearance doesn't stall on image decode
+  setTimeout(() => $$('main img').forEach((im, i) => setTimeout(() => { im.loading = 'eager'; im.decode && im.decode().catch(() => {}); }, i * 120)), 3000);
 
   /* ── master timeline ── */
   gsap.registerPlugin(ScrollTrigger);
@@ -212,8 +215,8 @@
   tl.fromTo(track, { strokeDashoffset: 1 }, { strokeDashoffset: 0, duration: 50 }, 846);
   tl.fromTo('.map__track', { opacity: 0 }, { opacity: 1, duration: 4 }, 846);
   tl.fromTo('.map__ens path', { opacity: 0 }, { opacity: 1, duration: 10, stagger: 3 }, 856);
-  tl.fromTo('.map__grid2', { strokeOpacity: 0 }, { strokeOpacity: 0.14, duration: 20 }, 868);
-  tl.fromTo('.map__grid', { strokeOpacity: 0.1 }, { strokeOpacity: 0.03, duration: 20 }, 868);
+  tl.fromTo('.map--grid2', { opacity: 0 }, { opacity: 1, duration: 20 }, 868);
+  tl.fromTo('.map--grid', { opacity: 1 }, { opacity: 0.3, duration: 20 }, 868);
   tl.fromTo('.storm__spin', { rotation: 0, svgOrigin: '0 0' }, { rotation: -420, duration: 140 }, 822);
   tl.fromTo('.storm', { scale: 0.6, svgOrigin: '1040 470' }, { scale: 1.1, duration: 60 }, 840);
   tl.fromTo('.storm__copy', { y: -60, opacity: 0 }, { y: 0, opacity: 1, duration: 18, ease: 'power3.out' }, 838);
@@ -354,7 +357,9 @@
     let cur = 'intro'; for (const id of ids) if (t >= S[id] - 8) cur = id;
     const sec = document.getElementById(cur), lab = sec.dataset.label;
     if (lab !== lastLabel) { label.textContent = lab; idx.textContent = String(sec.dataset.scene).padStart(2, '0') + ' / 11'; lastLabel = lab; }
-    layers.forEach((l) => { const o = +getComputedStyle(l).opacity; l.style.pointerEvents = o > 0.5 ? 'auto' : 'none'; l.style.visibility = o > 0.002 ? 'visible' : 'hidden'; });
+    // GSAP writes opacity inline, so read that (getComputedStyle here forced a style recalc on every frame); write only on change
+    layers.forEach((l) => { const o = parseFloat(l.style.opacity || '0'); const pe = o > 0.5 ? 'auto' : 'none', vis = o > 0.002 ? 'visible' : 'hidden';
+      if (l.style.pointerEvents !== pe) l.style.pointerEvents = pe; if (l.style.visibility !== vis) l.style.visibility = vis; });
   };
   gsap.ticker.add(sync);
   addEventListener('resize', () => { buildTraj(); placeRing(); applyHole(); sizeShards(); tl.invalidate(); sync(); });

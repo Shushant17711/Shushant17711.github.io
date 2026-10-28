@@ -189,11 +189,12 @@ body.actor-under #actor{z-index:4}
 
 /* #7 storm */
 .layer--storm{background:var(--deep);padding:0}
-.map{position:absolute;inset:0;width:100%;height:100%}
+.map{position:absolute;inset:0;width:100%;height:100%;will-change:transform}
+.map--grid2{opacity:0}
 .storm__copy{position:absolute;left:var(--pad-x);top:96px;width:min(520px,40vw);padding:22px 24px}
 .storm__tag{position:absolute;right:var(--pad-x);bottom:6vh;font-size:12.5px;color:var(--plasma);letter-spacing:.12em;margin:0}
 .screen-zoom{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;visibility:hidden;z-index:5}
-.screen-zoom__bezel{width:28vw;aspect-ratio:16/10;border-radius:14px;box-shadow:0 0 0 200vmax oklch(0.10 0.004 80 / .5),inset 0 0 0 3px var(--gold),0 0 0 12px oklch(0.20 0.004 80)}
+.screen-zoom__bezel{width:28vw;aspect-ratio:16/10;border-radius:14px;box-shadow:0 0 0 70vmax oklch(0.10 0.004 80 / .5),inset 0 0 0 3px var(--gold),0 0 0 12px oklch(0.20 0.004 80)}
 
 /* #8 mirage — split: the hostile page | the agent and the copy */
 .layer--mirage{padding:0;background:var(--deep)}

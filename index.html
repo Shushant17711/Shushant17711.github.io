@@ -235,10 +235,14 @@
 <!-- #7 STORM MAP · top-down map ───────────────────────────────── -->
 <section class="scene" id="storm" data-scene="7" data-label="EXTREME WEATHER">
   <div class="layer layer--storm">
-    <svg class="map" aria-hidden="true" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice">
-      <g class="map__contours" fill="none" stroke="var(--limb)" stroke-opacity=".22" stroke-width="1"></g>
-      <g class="map__grid" stroke="var(--limb)" stroke-opacity=".1"></g>
-      <g class="map__grid2" stroke="var(--airglow)" stroke-opacity="0"></g>
+    <!-- static layers are drawn once and only moved (cheap); the animated parts live in their own small svg -->
+    <svg class="map map--base" aria-hidden="true" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice">
+      <g class="map__contours" fill="none" stroke="var(--limb)" stroke-opacity=".22" stroke-width="1"></g></svg>
+    <svg class="map map--grid" aria-hidden="true" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice">
+      <g class="map__grid" stroke="var(--limb)" stroke-opacity=".1"></g></svg>
+    <svg class="map map--grid2" aria-hidden="true" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice">
+      <g class="map__grid2" stroke="var(--airglow)" stroke-opacity=".14"></g></svg>
+    <svg class="map map--fx" aria-hidden="true" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice">
       <path class="map__track" d="M150 860 C 420 760, 560 700, 760 600 S 1090 420, 1230 260" fill="none" stroke="var(--plasma)" stroke-width="3" stroke-dasharray="10 9"/>
       <g class="map__ens" fill="none" stroke="var(--plasma)" stroke-opacity=".35"></g>
       <g class="storm" transform="translate(1040 470)"><g class="storm__spin"></g><circle r="8" fill="var(--plasma)"/></g>

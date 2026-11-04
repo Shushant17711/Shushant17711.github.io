@@ -1,4 +1,4 @@
-/* Shushant Kumar Choudhary — experiments, graded.
+/* Shushant Kumar Choudhary — ML research & engineering.
    Scenes: decode → protocol → SurgeryNet → VISHWAS → Hamiltonian ⟶iris⟶ Mirage → Awaaz → index → evidence → close */
 (() => {
   const kit = window.motionKit ? motionKit.init() : { reduced: matchMedia('(prefers-reduced-motion: reduce)').matches };
@@ -474,7 +474,7 @@
     const ol = $('.ribbon');
     items.forEach(([t, d, s, repo, st], i) => {
       const li = document.createElement('li'); li.className = 'card hcard';
-      li.innerHTML = `<span class="hcard__no mono-label"><span>No. ${String(i + 6).padStart(3, '0')}</span><span>graded</span></span>
+      li.innerHTML = `<span class="hcard__no mono-label"><span>No. ${String(i + 6).padStart(3, '0')}</span><span>project</span></span>
         <h3>${t}</h3><p>${d}</p><span class="hcard__stack">${s}</span><a href="https://github.com/Shushant17711/${repo}">github.com/${repo} →</a>
         <span class="stamp" aria-hidden="true">${st}</span>`;
       ol.appendChild(li);
@@ -504,7 +504,7 @@
   gsap.from('.counts li', { y: 60, opacity: 0, stagger: .1, duration: .9, ease: 'expo.out', scrollTrigger: { trigger: '.counts', start: 'top 75%' } });
 
   // =====================================================================
-  // 10 · CLOSE — the portrait decodes again; the verdict reads HELD
+  // 10 · CLOSE — the portrait decodes again; the stamp says hi
   // =====================================================================
   photo.decode().then(() => {
     closeField = new DecodeField($('#decode-close'), photo, { cols: 64, touch: true });

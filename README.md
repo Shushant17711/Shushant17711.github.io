@@ -1,8 +1,8 @@
-# Shushant Kumar Choudhary — experiments, graded
+# Shushant Kumar Choudhary — portfolio
 
 Personal portfolio. A static site with no build step: `index.html`, `style.css`, `main.js`.
 
-The hero decodes my portrait out of measurement noise. Move the pointer over it to inject errors, and a matching decoder pairs and heals them. Each project scene ends with a red-pen verdict, null results included.
+The hero decodes my portrait out of measurement noise. Move the pointer over it to inject errors, and a matching decoder pairs and heals them. Each project scene ends with a red-pen stamp showing its key result.
 
 ## Run locally
 
